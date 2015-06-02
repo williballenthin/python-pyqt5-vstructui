@@ -4,7 +4,10 @@ import os
 import imp
 import functools
 import binascii
+from abc import ABCMeta
+from abc import abstractproperty
 
+from funcy import cached_property
 from hexview import QT_COLORS
 from hexview import HexViewWidget
 from hexview import make_color_icon
@@ -51,49 +54,60 @@ def get_parsers(defspath=defspath):
 
 
 class Item(object):
-    """ interface """
+    __metaclass__ = ABCMeta
 
-    def __init__(self):
-        pass
-
-    def __repr__(self):
+    @abstractproperty
+    def parent(self):
         raise NotImplementedError()
 
-    @property
+    @abstractproperty
     def children(self):
-        return []
+        raise NotImplementedError()
 
-    @property
+    @abstractproperty
     def name(self):
         raise NotImplementedError()
 
-    @property
+    @abstractproperty
     def type(self):
         raise NotImplementedError()
 
-    @property
+    @abstractproperty
     def data(self):
         raise NotImplementedError()
 
-    @property
+    @abstractproperty
     def start(self):
         raise NotImplementedError()
 
-    @property
+    @abstractproperty
     def length(self):
         raise NotImplementedError()
 
-    @property
+    @abstractproperty
     def end(self):
         raise NotImplementedError()
 
 
 class VstructItem(Item):
-    def __init__(self, struct, name, start):
+    def __init__(self, struct, name, start, parent=None):
         super(VstructItem, self).__init__()
-        self._struct = struct
+        self.struct = struct
         self._name = name
         self._start = start
+        self._parent = parent
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def start(self):
+        return self._start
+
+    @property
+    def parent(self):
+        return self._parent
 
     def __repr__(self):
         return "VstructItem(name: {:s}, type: {:s}, start: {:s}, length: {:s}, end: {:s})".format(
@@ -104,75 +118,104 @@ class VstructItem(Item):
             h(self.end),
         )
 
-    @property
+    @cached_property
     def children(self):
         ret = []
-        if isinstance(self._struct, VStruct):
+        if isinstance(self.struct, VStruct):
             off = self.start
             # TODO: don't reach
-            for fname in self._struct._vs_fields:
-                x = self._struct._vs_values.get(fname)
+            for fname in self.struct._vs_fields:
+                x = self.struct._vs_values.get(fname)
                 # TODO: merge these
                 if isinstance(x, VStruct):
-                    ret.append(VstructItem(x, fname, off))
+                    ret.append(VstructItem(x, fname, off, self))
                 else:
-                    ret.append(VstructItem(x, fname, off))
+                    ret.append(VstructItem(x, fname, off, self))
                 off += len(x)
         return ret
 
     @property
-    def struct(self):
-        return self._struct
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
     def type(self):
-        return self._struct.__class__.__name__
+        return self.struct.__class__.__name__
 
     @property
     def data(self):
-        if isinstance(self._struct, VStruct):
+        if isinstance(self.struct, VStruct):
             return ""
-        elif isinstance(self._struct, v_number):
-            return h(self._struct.vsGetValue())
-        elif isinstance(self._struct, v_bytes):
-            return binascii.b2a_hex(self._struct.vsGetValue())
-        elif isinstance(self._struct, v_prim):
-            return self._struct.vsGetValue()
+        elif isinstance(self.struct, v_number):
+            return h(self.struct.vsGetValue())
+        elif isinstance(self.struct, v_bytes):
+            return binascii.b2a_hex(self.struct.vsGetValue())
+        elif isinstance(self.struct, v_prim):
+            return self.struct.vsGetValue()
         else:
             return ""
 
     @property
-    def start(self):
-        return self._start
-
-    @property
     def length(self):
-        return len(self._struct)
+        return len(self.struct)
 
     @property
     def end(self):
         return self.start + self.length
+
+    def set_parent(self, parent):
+        self._parent = parent
+
+    @property
+    def row(self):
+        if self._parent:
+            return self._parent.children.index(self)
+        return 0
 
 
 class VstructRootItem(Item):
     def __init__(self, items):
         super(VstructRootItem, self).__init__()
         self._items = list(items)
+        for i in self._items:
+            i.set_parent(self)
+        #self._children = [VstructItem(i.struct, i.name, i.start, self) for i in self._items]
+
+    @property
+    def parent(self):
+        return None
 
     def __repr__(self):
         return "VstructRootItem()"
 
     @property
     def children(self):
-        return [VstructItem(i.struct, i.name, i.start) for i in self._items]
+        return self._items
 
     def add_item(self, item):
-        # be sure to call the TreeModel.emitDataChanged() method
+        # be sure to call the TreeModel.treeChanged() method
+        item.set_parent(self)
         self._items.append(item)
+
+    @property
+    def name(self):
+        return None
+
+    @property
+    def type(self):
+        return None
+
+    @property
+    def data(self):
+        return None
+
+    @property
+    def start(self):
+        return 0
+
+    @property
+    def length(self):
+        return 0
+
+    @property
+    def end(self):
+        return 0
 
 
 uipath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "vstructui.ui")
@@ -203,12 +246,14 @@ class VstructHexViewWidget(HexViewWidget):
             a.triggered.connect(handler)
             menu.addAction(a)
 
-        def make_parse_handler(Parser):
-            pass
+        def make_parse_handler(offset, parser_name):
+            print(offset)
+            return lambda: self.parseRequested.emit(offset, parser_name)
 
         parser_menu = menu.addMenu("Parse as...")
         for parser_name in self._parsers.parser_names:
             add_action(parser_menu, parser_name,
+                       #make_parse_handler(sm.start, parser_name))
                        functools.partial(self.parseRequested.emit, sm.start, parser_name))
 
         return menu
@@ -289,7 +334,7 @@ class VstructViewWidget(Base, UI, LoggingObject):
 
     def _handle_item_activated(self, item_index):
         self._clear_current_range()
-        item = self._model.getIndexData(item_index)
+        item = item_index.internalPointer()
         s = item.start
         e = item.start + item.length
         self._hv.getBorderModel().border_region(s, e, Qt.black)
@@ -298,7 +343,7 @@ class VstructViewWidget(Base, UI, LoggingObject):
 
     def _handle_context_menu_requested(self, qpoint):
         index = self.treeView.indexAt(qpoint)
-        item = index.model().getIndexData(index)
+        item = index.internalPointer()
 
         def add_action(menu, text, handler, icon=None):
             a = None
@@ -339,7 +384,8 @@ class VstructViewWidget(Base, UI, LoggingObject):
         for vi in self._parsers.parse(parser_name, self._buf, offset, ""):
             i = VstructItem(vi.instance, vi.name, offset)
             self._root_item.add_item(i)
-        self._model.emitDataChanged()
+        self._model.treeChanged()
+
 
 def main():
     buf = []
@@ -363,7 +409,9 @@ def main():
     t2.vsParse(buf, offset=0x40)
 
     app = QApplication(sys.argv)
-    screen = VstructViewWidget((VstructItem(t1, "t1", 0x0), VstructItem(t2, "t2", 0x40)), buf)
+    #screen = VstructViewWidget((VstructItem(t1, "t1", 0x0), VstructItem(t2, "t2", 0x40)), buf)
+    #screen = VstructViewWidget([], buf)
+    screen = VstructViewWidget((VstructItem(t1, "t1", 0x0),), buf)
     screen.show()
     sys.exit(app.exec_())
 

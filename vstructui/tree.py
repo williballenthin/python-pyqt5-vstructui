@@ -1,3 +1,5 @@
+from abc import ABCMeta
+from abc import abstractproperty
 from collections import namedtuple
 
 from PyQt5.QtCore import Qt
@@ -5,86 +7,11 @@ from PyQt5.QtCore import QModelIndex
 from PyQt5.QtCore import QAbstractItemModel
 
 
-class Item(object):
-    """ interface """
-
-    def __init__(self):
-        pass
-
-    def __repr__(self):
-        raise NotImplementedError()
-
-    @property
-    def children(self):
-        return []
-
-    @property
-    def type(self):
-        raise NotImplementedError()
-
-    @property
-    def name(self):
-        raise NotImplementedError()
-
-
-class ListItem(Item):
-    """ a node in a list of nodes whose children will be dynamically loaded """
-    def __init__(self, name, getter):
-        super(ListItem, self).__init__()
-        self._name = name
-        self._getter = getter
-        self._children = None
-
-    def __repr__(self):
-        return "ListItem(numChildren: {:s})".format(str(len(self.children)))
-
-    def _getChildren(self):
-        if self._children is None:
-            self._children = sorted(self._getter(), key=lambda i: i.name())
-        return self._children
-
-    @property
-    def children(self):
-        return self._getChildren()
-
-    @property
-    def type(self):
-        return ""
-
-    @property
-    def name(self):
-        return self._name
-
-
-class TreeNode(object):
-    """ adapter from Item to QAbstractItemModel interface """
-    def __init__(self, parent, data):
-        super(TreeNode, self).__init__()
-        self._parent = parent
-        self._data = data
-        self._children = None
-
-    @property
-    def parent(self):
-        return self._parent
-
-    @property
-    def children(self):
-        #if self._children is None:
-        #    self._children = [TreeNode(self, c) for c in self._data.children]
-        #return self._children
-        print([c for c in self._data.children])
-        return [TreeNode(self, c) for c in self._data.children]
-
-    @property
-    def data(self):
-        return self._data
-
-    @property
-    def row(self):
-        if self._parent:
-            return self._parent.children.index(self)
-        return 0
+#    @property
+#    def row(self):
+#        if self._parent:
+#            return self._parent.children.index(self)
+#        return 0
 
 
 _ColumnDef = namedtuple("ColumnDef", ["displayName", "attributeName", "formatter"])
@@ -96,23 +23,8 @@ class TreeModel(QAbstractItemModel):
     """ adapter from Item to QAbstractItemModel interface """
     def __init__(self, root, columns, parent=None):
         super(TreeModel, self).__init__(parent)
-        self._root = TreeNode(None, root)
+        self._root = root
         self._columns = columns
-        self._indexItems = {}  # int to Item
-        self._counter = 0
-
-    # index.internalPointer() is not working for me consistently,
-    # so we keep track of live objects ourselves
-    def _addIndexItem(self, index, item):
-        self._indexItems[index.internalId()] = item
-
-    def _getIndexItem(self, id_):
-        return self._indexItems[id_]
-
-    def _createIndex(self, row, column, item):
-        i = self.createIndex(row, column, item)
-        self._addIndexItem(i, item)
-        return i
 
     def columnCount(self, parent):
         return len(self._columns)
@@ -134,22 +46,22 @@ class TreeModel(QAbstractItemModel):
         if role != Qt.DisplayRole:
             return None
 
-        item = self._getIndexItem(index.internalId())
+        item = index.internalPointer()
         coldef = self._columns[index.column()]
-        return coldef.formatter(getattr(item.data, coldef.attributeName))
+        return coldef.formatter(getattr(item, coldef.attributeName))
 
-    def index(self, row, column, parent):
+    def index(self, row, column=0, parent=QModelIndex()):
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
 
         if not parent.isValid():
             parentItem = self._root
         else:
-            parentItem = self._getIndexItem(parent.internalId())
+            parentItem = parent.internalPointer()
 
         childItem = parentItem.children[row]
         if childItem:
-            return self._createIndex(row, column, childItem)
+            return self.createIndex(row, column, childItem)
         else:
             return QModelIndex()
 
@@ -157,35 +69,28 @@ class TreeModel(QAbstractItemModel):
         if not index.isValid():
             return QModelIndex()
 
-        childItem = self._getIndexItem(index.internalId())
+        childItem = index.internalPointer()
         parentItem = childItem.parent
 
         if parentItem == self._root:
             return QModelIndex()
 
-        return self._createIndex(parentItem.row, 0, parentItem)
+        return self.createIndex(parentItem.row, 0, parentItem)
 
-    def rowCount(self, parent):
+    def rowCount(self, parent=QModelIndex()):
         if parent.column() > 0:
             return 0
 
         if not parent.isValid():
             parentItem = self._root
         else:
-            parentItem = self._getIndexItem(parent.internalId())
+            parentItem = parent.internalPointer()
 
         return len(parentItem.children)
 
-    def getIndexData(self, itemIndex):
-        """
-        since we're hacking at the index data storage,
-          need to provide an accessor.
-        bad design to force the receiver of the index to have
-          a reference to the model :-(.
-        """
-        return self._getIndexItem(itemIndex.internalId()).data
+    def get_root_index(self):
+        pass
 
-    # from: http://www.qtcentre.org/threads/48230-QTreeView-How-to-refresh-the-view?p=270537#post270537
-    def emitDataChanged(self):
-        self.dataChanged.emit(QModelIndex(), QModelIndex())
+    def treeChanged(self):
+        self.layoutChanged.emit()
 
