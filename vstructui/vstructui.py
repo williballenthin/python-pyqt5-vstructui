@@ -1,6 +1,8 @@
 # TODO: fix bug of bordering zero-length item
 
 import os
+import imp
+import functools
 import binascii
 
 from hexview import QT_COLORS
@@ -9,10 +11,14 @@ from hexview import make_color_icon
 
 from PyQt5 import uic
 from PyQt5.QtCore import Qt
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QMenu
 from PyQt5.QtWidgets import QAction
 from PyQt5.QtWidgets import QHeaderView
 from PyQt5.QtWidgets import QApplication
+
+# need to import this so that defs can import vstructui and access the class
+from vstruct_parser import BasicVstructParser
 
 from common import h
 from common import LoggingObject
@@ -26,19 +32,21 @@ from vstruct.primitives import v_bytes
 from vstruct.primitives import v_uint8
 from vstruct.primitives import v_uint16
 from vstruct.primitives import v_uint32
+from vstruct_parser import ParserSet
 
 
-import imp
 defspath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "defs")
 def get_parsers(defspath=defspath):
-    parsers = []
+    parsers = ParserSet()
     for filename in os.listdir(defspath):
+        if not filename.endswith(".py"):
+            continue
         deffilepath = os.path.join(defspath, filename)
         mod = imp.load_source("vstruct_parser", deffilepath)
         if not hasattr(mod, "vsEntryVstructParser"):
             continue
         parser = mod.vsEntryVstructParser()
-        parsers.append(parser)
+        parsers.add_parser(parser)
     return parsers
 
 
@@ -153,7 +161,7 @@ class VstructItem(Item):
 class VstructRootItem(Item):
     def __init__(self, items):
         super(VstructRootItem, self).__init__()
-        self._items = items
+        self._items = list(items)
 
     def __repr__(self):
         return "VstructRootItem()"
@@ -162,9 +170,48 @@ class VstructRootItem(Item):
     def children(self):
         return [VstructItem(i.struct, i.name, i.start) for i in self._items]
 
+    def add_item(self, item):
+        # be sure to call the TreeModel.emitDataChanged() method
+        self._items.append(item)
+
 
 uipath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "vstructui.ui")
 UI, Base = uic.loadUiType(uipath)
+
+
+class VstructHexViewWidget(HexViewWidget):
+    # args: offset, parser_name
+    parseRequested = pyqtSignal([int, str])
+
+    def __init__(self, parsers, *args, **kwargs):
+        super(VstructHexViewWidget, self).__init__(*args, **kwargs)
+        self._parsers = parsers
+
+    def get_context_menu(self, qpoint):
+        menu = super(VstructHexViewWidget, self).get_context_menu(qpoint)
+
+        sm = self.getSelectionModel()
+        if sm.start != sm.end:
+            return menu
+
+        def add_action(menu, text, handler, icon=None):
+            a = None
+            if icon is None:
+                a = QAction(text, self)
+            else:
+                a = QAction(icon, text, self)
+            a.triggered.connect(handler)
+            menu.addAction(a)
+
+        def make_parse_handler(Parser):
+            pass
+
+        parser_menu = menu.addMenu("Parse as...")
+        for parser_name in self._parsers.parser_names:
+            add_action(parser_menu, parser_name,
+                       functools.partial(self.parseRequested.emit, sm.start, parser_name))
+
+        return menu
 
 
 class VstructViewWidget(Base, UI, LoggingObject):
@@ -175,8 +222,9 @@ class VstructViewWidget(Base, UI, LoggingObject):
 
         self._items = items
         self._buf = buf
+        self._root_item = VstructRootItem(items)
         self._model = TreeModel(
-            VstructRootItem(items),
+            self._root_item,
             [
                 ColumnDef("Name", "name"),
                 ColumnDef("Type", "type"),
@@ -185,8 +233,10 @@ class VstructViewWidget(Base, UI, LoggingObject):
                 ColumnDef("Length", "length", formatter=h),
                 ColumnDef("End", "end", formatter=h),
             ])
+        self._parsers = get_parsers()
 
-        self._hv = HexViewWidget(self._buf, self.splitter)
+        self._hv = VstructHexViewWidget(self._parsers, self._buf, self.splitter)
+        self._hv.parseRequested.connect(self._handle_parse_requested)
         self.splitter.insertWidget(0, self._hv)
 
         tv = self.treeView
@@ -285,6 +335,11 @@ class VstructViewWidget(Base, UI, LoggingObject):
     def _handle_clear_color_item(self, item):
         self._clear_item(item)
 
+    def _handle_parse_requested(self, offset, parser_name):
+        for vi in self._parsers.parse(parser_name, self._buf, offset, ""):
+            i = VstructItem(vi.instance, vi.name, offset)
+            self._root_item.add_item(i)
+        self._model.emitDataChanged()
 
 def main():
     buf = []
@@ -306,8 +361,6 @@ def main():
 
     t2 = TestStruct()
     t2.vsParse(buf, offset=0x40)
-
-    print(get_parsers())
 
     app = QApplication(sys.argv)
     screen = VstructViewWidget((VstructItem(t1, "t1", 0x0), VstructItem(t2, "t2", 0x40)), buf)

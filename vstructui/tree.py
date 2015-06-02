@@ -56,29 +56,6 @@ class ListItem(Item):
         return self._name
 
 
-class TestItem(Item):
-    def __init__(self, name):
-        super(TestItem, self).__init__()
-        self._name = name
-
-    @property
-    def children(self):
-        return [
-            TestItem(self._name + "1"),
-            TestItem(self._name + "2"),
-            TestItem(self._name + "3"),
-            TestItem(self._name + "4"),
-        ]
-
-    @property
-    def type(self):
-        return "Test"
-
-    @property
-    def name(self):
-        return self._name
-
-
 class TreeNode(object):
     """ adapter from Item to QAbstractItemModel interface """
     def __init__(self, parent, data):
@@ -93,9 +70,11 @@ class TreeNode(object):
 
     @property
     def children(self):
-        if self._children is None:
-            self._children = [TreeNode(self, c) for c in self._data.children]
-        return self._children
+        #if self._children is None:
+        #    self._children = [TreeNode(self, c) for c in self._data.children]
+        #return self._children
+        print([c for c in self._data.children])
+        return [TreeNode(self, c) for c in self._data.children]
 
     @property
     def data(self):
@@ -206,4 +185,7 @@ class TreeModel(QAbstractItemModel):
         """
         return self._getIndexItem(itemIndex.internalId()).data
 
+    # from: http://www.qtcentre.org/threads/48230-QTreeView-How-to-refresh-the-view?p=270537#post270537
+    def emitDataChanged(self):
+        self.dataChanged.emit(QModelIndex(), QModelIndex())
 

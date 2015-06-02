@@ -3,7 +3,7 @@ from vstruct.primitives import v_bytes
 from vstruct.primitives import v_uint32
 from vstruct.primitives import v_wstr
 
-from vstructui.vstruct_parser import BasicVstructParser
+from vstructui import BasicVstructParser
 
 
 # from: https://github.com/evil-e/sdb-explorer/blob/master/sdb.h
