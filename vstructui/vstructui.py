@@ -28,6 +28,20 @@ from vstruct.primitives import v_uint16
 from vstruct.primitives import v_uint32
 
 
+import imp
+defspath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "defs")
+def get_parsers(defspath=defspath):
+    parsers = []
+    for filename in os.listdir(defspath):
+        deffilepath = os.path.join(defspath, filename)
+        mod = imp.load_source("vstruct_parser", deffilepath)
+        if not hasattr(mod, "vsEntryVstructParser"):
+            continue
+        parser = mod.vsEntryVstructParser()
+        parsers.append(parser)
+    return parsers
+
+
 class Item(object):
     """ interface """
 
@@ -292,6 +306,8 @@ def main():
 
     t2 = TestStruct()
     t2.vsParse(buf, offset=0x40)
+
+    print(get_parsers())
 
     app = QApplication(sys.argv)
     screen = VstructViewWidget((VstructItem(t1, "t1", 0x0), VstructItem(t2, "t2", 0x40)), buf)
