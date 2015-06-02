@@ -1,7 +1,11 @@
-# TODO: fix de-color item
 # TODO: fix bug of bordering zero-length item
 
+import os
 import binascii
+
+from hexview import QT_COLORS
+from hexview import HexViewWidget
+from hexview import make_color_icon
 
 from PyQt5 import uic
 from PyQt5.QtCore import Qt
@@ -10,11 +14,10 @@ from PyQt5.QtWidgets import QAction
 from PyQt5.QtWidgets import QHeaderView
 from PyQt5.QtWidgets import QApplication
 
-import os.path, sys
-sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
 from common import h
 from common import LoggingObject
-
+from tree import TreeModel
+from tree import ColumnDef
 from vstruct import VStruct
 from vstruct import VArray
 from vstruct.primitives import v_prim
@@ -23,12 +26,6 @@ from vstruct.primitives import v_bytes
 from vstruct.primitives import v_uint8
 from vstruct.primitives import v_uint16
 from vstruct.primitives import v_uint32
-
-from ui.tree import TreeModel
-from ui.tree import ColumnDef
-from ui.hexview import QT_COLORS
-from ui.hexview import HexViewWidget
-from ui.hexview import make_color_icon
 
 
 class Item(object):
@@ -152,7 +149,8 @@ class VstructRootItem(Item):
         return [VstructItem(i.struct, i.name, i.start) for i in self._items]
 
 
-UI, Base = uic.loadUiType("ui/vstruct.ui")
+uipath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "vstructui.ui")
+UI, Base = uic.loadUiType(uipath)
 
 
 class VstructViewWidget(Base, UI, LoggingObject):
