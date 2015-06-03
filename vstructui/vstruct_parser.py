@@ -2,15 +2,17 @@ from abc import ABCMeta
 from abc import abstractproperty
 from abc import abstractmethod
 from functools import partial
-from collections import namedtuple
+from mutablenamedtuple import mutablenamedtuple
 
 
-VstructInstance = namedtuple("VstructInstance", ["offset", "instance", "name"])
+VstructInstance = mutablenamedtuple("VstructInstance", ["offset", "instance", "name"])
 
 
 class VstructParserInterface(object):
     __metaclass__ = ABCMeta
 
+    # TODO: this should probably be 'parsers', and return Iterable[ParserDescription]
+    #   ParserDescription = namedtuple["name", "has_static_length", "length", "parsed_type"]
     @abstractproperty
     def parser_names(self):
         """

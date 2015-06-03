@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import QMenu
 from PyQt5.QtWidgets import QAction
 from PyQt5.QtWidgets import QHeaderView
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QInputDialog
 
 # need to import this so that defs can import vstructui and access the class
 from vstruct_parser import VstructParserSet
@@ -102,6 +103,10 @@ class VstructItem(Item):
     def name(self):
         return self._instance.name
 
+    @name.setter
+    def name(self, value):
+        self._instance.name = value
+
     @property
     def offset(self):
         return self._instance.offset
@@ -169,7 +174,7 @@ class VstructItem(Item):
 class VstructRootItem(Item):
     def __init__(self, instances):
         super(VstructRootItem, self).__init__()
-        self._items = [VstructItem(i, self) for i in instances]
+        self._items = sorted([VstructItem(i, self) for i in instances], key=lambda i: i.offset)
 
     @property
     def parent(self):
@@ -185,6 +190,7 @@ class VstructRootItem(Item):
     def add_item(self, instance):
         # be sure to call the TreeModel.treeChanged() method
         self._items.append(VstructItem(instance, self))
+        self._items = sorted(self._items, key=lambda i: i.offset)
 
     @property
     def name(self):
@@ -240,7 +246,7 @@ class VstructHexViewWidget(HexViewWidget):
             menu.addAction(a)
 
         parser_menu = menu.addMenu("Parse as...")
-        for parser_name in self._parsers.parser_names:
+        for parser_name in sorted(self._parsers.parser_names):
             add_action(parser_menu, parser_name,
                        functools.partial(self.parseRequested.emit, sm.start, parser_name))
 
@@ -359,6 +365,8 @@ class VstructViewWidget(Base, UI, LoggingObject):
                 add_action(color_menu, "{:s}".format(color.name),
                            make_color_item_handler(item, color.qcolor), make_color_icon(color.qcolor))
 
+        add_action(menu, "Set name...", lambda: self._handle_set_name(item))
+
         menu.exec_(self.treeView.mapToGlobal(qpoint))
 
     def _handle_color_item(self, item, color=None):
@@ -372,13 +380,20 @@ class VstructViewWidget(Base, UI, LoggingObject):
             self._root_item.add_item(vi)
         self._model.treeChanged()
 
+    def _handle_set_name(self, item):
+        name, ok = QInputDialog.getText(self, "Set name...", "Name:")
+        if ok and name:
+            item.name = name
+            self._model.treeChanged()
 
+
+_HEX_ALPHA_CHARS = set(list("abcdefABCDEF"))
 def is_probably_hex(s):
     if s.startswith("0x"):
         return True
 
     for c in s:
-        if c in "abcdefABCDEF":
+        if c in _HEX_ALPHA_CHARS:
             return True
 
     return False
@@ -410,6 +425,7 @@ def main(*args):
         t2.vsParse(buf, offset=0x40)
         structs = (VstructInstance(0x0, t1, "t1"), VstructItem(0x40, t2, "t2"))
     else:
+        # vstructui.py /path/to/binary/file "0x0:uint32:first dword" "0x4:uint_2:first word"
         structs = []
         args = list(args)  # we want a list that we can modify
         filename = args.pop(0)
