@@ -36,6 +36,7 @@ from vstruct.primitives import v_bytes
 from vstruct.primitives import v_uint8
 from vstruct.primitives import v_uint16
 from vstruct.primitives import v_uint32
+from vstruct.primitives import enum_mixin
 from vstruct_parser import ComposedParser
 from vstruct_parser import VstructInstance
 
@@ -136,14 +137,17 @@ class VstructItem(Item):
 
     @property
     def data(self):
-        if isinstance(self._instance.instance, VStruct):
+        i = self._instance.instance
+        if isinstance(i, VStruct):
             return ""
-        elif isinstance(self._instance.instance, v_number):
-            return h(self._instance.instance.vsGetValue())
-        elif isinstance(self._instance.instance, v_bytes):
-            return binascii.b2a_hex(self._instance.instance.vsGetValue())
-        elif isinstance(self._instance.instance, v_prim):
-            return self._instance.instance.vsGetValue()
+        elif isinstance(i, enum_mixin):
+            return "{:s} ({:s})".format(str(i), h(i.vsGetValue()))
+        elif isinstance(i, v_number):
+            return h(i.vsGetValue())
+        elif isinstance(i, v_bytes):
+            return binascii.b2a_hex(i.vsGetValue())
+        elif isinstance(i, v_prim):
+            return i.vsGetValue()
         else:
             return ""
 
