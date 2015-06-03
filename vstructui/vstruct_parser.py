@@ -7,6 +7,7 @@ from collections import namedtuple
 
 VstructInstance = namedtuple("VstructInstance", ["offset", "instance", "name"])
 
+
 class VstructParserInterface(object):
     __metaclass__ = ABCMeta
 
@@ -31,9 +32,22 @@ class VstructParserInterface(object):
         return repr(self)
 
 
-class VstructParser(VstructParserInterface):
+class VstructParserSet(VstructParserInterface):
+    """
+    a collection of vstruct class parses that can be selected by name.
+    example:
+
+        class FOO(VStruct)...
+        class BAR(VStruct)...
+
+        def vsEntryVstructParser():
+            s = VstructParserSet()
+            s.register_basic_parser("foo parser", FOO)
+            s.register_basic_parser("bar parser", BAR)
+            return s
+    """
     def __init__(self):
-        super(VstructParser, self).__init__()
+        super(VstructParserSet, self).__init__()
         self._parsers = {}
 
     @staticmethod
@@ -53,7 +67,7 @@ class VstructParser(VstructParserInterface):
         return self._parsers[parser_name](buf, offset, name=name)
 
 
-class BasicVstructParser(VstructParser):
+class BasicVstructParserSet(VstructParserSet):
     """
     so we can do something like:
 
@@ -64,14 +78,18 @@ class BasicVstructParser(VstructParser):
             return BasicVstructParser((FOO, BAR))
     """
     def __init__(self, vstruct_klasses):
-        super(BasicVstructParser, self).__init__()
+        super(BasicVstructParserSet, self).__init__()
         for klass in vstruct_klasses:
             self.register_basic_parser(klass.__name__, klass)
 
 
-class ParserSet(VstructParserInterface):
+class ComposedParser(VstructParserInterface):
+    """
+    i don't really know what to name this.
+    its a collection of other parser sets for convenience.
+    """
     def __init__(self, parsers=None):
-        super(ParserSet, self).__init__()
+        super(ComposedParser, self).__init__()
         self._parsers = []  # type: VstructParserInterface
         if parsers is not None:
             self._parsers = parsers

@@ -3,7 +3,7 @@ from vstruct.primitives import v_bytes
 from vstruct.primitives import v_uint32
 from vstruct.primitives import v_wstr
 
-from vstructui import BasicVstructParser
+from vstructui import BasicVstructParserSet
 
 
 # from: https://github.com/evil-e/sdb-explorer/blob/master/sdb.h
@@ -21,11 +21,11 @@ class PATCHBITS(VStruct):
     def pcb_pattern_size(self):
         if self.pattern_size > 0x1000:
             print("warning: pattern_size probably incorrect")
-            self["pattern"].vsSetLength(0x1000)
+            self["pattern"].vsSetLength(0x10000)
         else:
             self["pattern"].vsSetLength(self.pattern_size)
 
 
 def vsEntryVstructParser():
-    return BasicVstructParser((PATCHBITS,))
+    return BasicVstructParserSet((PATCHBITS,))
 

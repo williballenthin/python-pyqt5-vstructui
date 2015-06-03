@@ -21,7 +21,8 @@ from PyQt5.QtWidgets import QHeaderView
 from PyQt5.QtWidgets import QApplication
 
 # need to import this so that defs can import vstructui and access the class
-from vstruct_parser import BasicVstructParser
+from vstruct_parser import VstructParserSet
+from vstruct_parser import BasicVstructParserSet
 
 from common import h
 from common import LoggingObject
@@ -35,12 +36,13 @@ from vstruct.primitives import v_bytes
 from vstruct.primitives import v_uint8
 from vstruct.primitives import v_uint16
 from vstruct.primitives import v_uint32
-from vstruct_parser import ParserSet
+from vstruct_parser import ComposedParser
+from vstruct_parser import VstructInstance
 
 
 defspath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "defs")
 def get_parsers(defspath=defspath):
-    parsers = ParserSet()
+    parsers = ComposedParser()
     for filename in os.listdir(defspath):
         if not filename.endswith(".py"):
             continue
@@ -77,7 +79,7 @@ class Item(object):
         raise NotImplementedError()
 
     @abstractproperty
-    def start(self):
+    def offset(self):
         raise NotImplementedError()
 
     @abstractproperty
@@ -90,20 +92,18 @@ class Item(object):
 
 
 class VstructItem(Item):
-    def __init__(self, struct, name, start, parent=None):
+    def __init__(self, instance, parent=None):
         super(VstructItem, self).__init__()
-        self.struct = struct
-        self._name = name
-        self._start = start
+        self._instance = instance
         self._parent = parent
 
     @property
     def name(self):
-        return self._name
+        return self._instance.name
 
     @property
-    def start(self):
-        return self._start
+    def offset(self):
+        return self._instance.offset
 
     @property
     def parent(self):
@@ -113,7 +113,7 @@ class VstructItem(Item):
         return "VstructItem(name: {:s}, type: {:s}, start: {:s}, length: {:s}, end: {:s})".format(
             self.name,
             self.type,
-            h(self.start),
+            h(self.offset),
             h(self.length),
             h(self.end),
         )
@@ -121,46 +121,39 @@ class VstructItem(Item):
     @cached_property
     def children(self):
         ret = []
-        if isinstance(self.struct, VStruct):
-            off = self.start
+        if isinstance(self._instance.instance, VStruct):
+            off = self.offset
             # TODO: don't reach
-            for fname in self.struct._vs_fields:
-                x = self.struct._vs_values.get(fname)
-                # TODO: merge these
-                if isinstance(x, VStruct):
-                    ret.append(VstructItem(x, fname, off, self))
-                else:
-                    ret.append(VstructItem(x, fname, off, self))
+            for fname in self._instance.instance._vs_fields:
+                x = self._instance.instance._vs_values.get(fname)
+                ret.append(VstructItem(VstructInstance(off, x, fname), self))
                 off += len(x)
         return ret
 
     @property
     def type(self):
-        return self.struct.__class__.__name__
+        return self._instance.instance.__class__.__name__
 
     @property
     def data(self):
-        if isinstance(self.struct, VStruct):
+        if isinstance(self._instance.instance, VStruct):
             return ""
-        elif isinstance(self.struct, v_number):
-            return h(self.struct.vsGetValue())
-        elif isinstance(self.struct, v_bytes):
-            return binascii.b2a_hex(self.struct.vsGetValue())
-        elif isinstance(self.struct, v_prim):
-            return self.struct.vsGetValue()
+        elif isinstance(self._instance.instance, v_number):
+            return h(self._instance.instance.vsGetValue())
+        elif isinstance(self._instance.instance, v_bytes):
+            return binascii.b2a_hex(self._instance.instance.vsGetValue())
+        elif isinstance(self._instance.instance, v_prim):
+            return self._instance.instance.vsGetValue()
         else:
             return ""
 
     @property
     def length(self):
-        return len(self.struct)
+        return len(self._instance.instance)
 
     @property
     def end(self):
-        return self.start + self.length
-
-    def set_parent(self, parent):
-        self._parent = parent
+        return self.offset + self.length
 
     @property
     def row(self):
@@ -170,12 +163,9 @@ class VstructItem(Item):
 
 
 class VstructRootItem(Item):
-    def __init__(self, items):
+    def __init__(self, instances):
         super(VstructRootItem, self).__init__()
-        self._items = list(items)
-        for i in self._items:
-            i.set_parent(self)
-        #self._children = [VstructItem(i.struct, i.name, i.start, self) for i in self._items]
+        self._items = [VstructItem(i, self) for i in instances]
 
     @property
     def parent(self):
@@ -188,10 +178,9 @@ class VstructRootItem(Item):
     def children(self):
         return self._items
 
-    def add_item(self, item):
+    def add_item(self, instance):
         # be sure to call the TreeModel.treeChanged() method
-        item.set_parent(self)
-        self._items.append(item)
+        self._items.append(VstructItem(instance, self))
 
     @property
     def name(self):
@@ -206,7 +195,7 @@ class VstructRootItem(Item):
         return None
 
     @property
-    def start(self):
+    def offset(self):
         return 0
 
     @property
@@ -234,7 +223,7 @@ class VstructHexViewWidget(HexViewWidget):
         menu = super(VstructHexViewWidget, self).get_context_menu(qpoint)
 
         sm = self.getSelectionModel()
-        if sm.start != sm.end:
+        if sm.offset != sm.end:
             return menu
 
         def add_action(menu, text, handler, icon=None):
@@ -254,31 +243,30 @@ class VstructHexViewWidget(HexViewWidget):
         for parser_name in self._parsers.parser_names:
             add_action(parser_menu, parser_name,
                        #make_parse_handler(sm.start, parser_name))
-                       functools.partial(self.parseRequested.emit, sm.start, parser_name))
+                       functools.partial(self.parseRequested.emit, sm.offset, parser_name))
 
         return menu
 
 
 class VstructViewWidget(Base, UI, LoggingObject):
-    def __init__(self, items, buf, parent=None):
+    def __init__(self, parsers, instances, buf, parent=None):
         """ items is a list of VstructItem """
         super(VstructViewWidget, self).__init__(parent)
         self.setupUi(self)
 
-        self._items = items
         self._buf = buf
-        self._root_item = VstructRootItem(items)
+        self._root_item = VstructRootItem(instances)
         self._model = TreeModel(
             self._root_item,
             [
                 ColumnDef("Name", "name"),
                 ColumnDef("Type", "type"),
                 ColumnDef("Data", "data"),
-                ColumnDef("Start", "start", formatter=h),
+                ColumnDef("Start", "offset", formatter=h),
                 ColumnDef("Length", "length", formatter=h),
                 ColumnDef("End", "end", formatter=h),
             ])
-        self._parsers = get_parsers()
+        self._parsers = parsers
 
         self._hv = VstructHexViewWidget(self._parsers, self._buf, self.splitter)
         self._hv.parseRequested.connect(self._handle_parse_requested)
@@ -316,27 +304,27 @@ class VstructViewWidget(Base, UI, LoggingObject):
             self._handle_item_activated(item_indices.indexes()[0])
 
     def _color_item(self, item, color=None):
-        start = item.start
+        start = item.offset
         end = start + item.length
         # deselect any existing ranges, or else colors get confused
         self._hv._hsm.bselect(-1, -1)
         return self._hv.getColorModel().color_region(start, end, color)
 
     def _is_item_colored(self, item):
-        start = item.start
+        start = item.offset
         end = start + item.length
         return self._hv.getColorModel().is_region_colored(start, end)
 
     def _clear_item(self, item):
-        start = item.start
+        start = item.offset
         end = start + item.length
         return self._hv.getColorModel().clear_region(start, end)
 
     def _handle_item_activated(self, item_index):
         self._clear_current_range()
         item = item_index.internalPointer()
-        s = item.start
-        e = item.start + item.length
+        s = item.offset
+        e = item.offset + item.length
         self._hv.getBorderModel().border_region(s, e, Qt.black)
         self._current_range = (s, e)
         self._hv.scrollTo(s)
@@ -382,36 +370,71 @@ class VstructViewWidget(Base, UI, LoggingObject):
 
     def _handle_parse_requested(self, offset, parser_name):
         for vi in self._parsers.parse(parser_name, self._buf, offset, ""):
-            i = VstructItem(vi.instance, vi.name, offset)
-            self._root_item.add_item(i)
+            self._root_item.add_item(vi)
         self._model.treeChanged()
 
 
-def main():
-    buf = []
-    for i in xrange(0x100):
-        buf.append(chr(i))
-    buf = "".join(buf)
+def is_probably_hex(s):
+    if s.startswith("0x"):
+        return True
 
-    class TestStruct(VStruct):
-        def __init__(self):
-            VStruct.__init__(self)
-            self.a = v_uint8()
-            self.b = v_uint16()
-            self.c = v_uint32()
-            self.d = v_uint8()
-            self.e = VArray((v_uint32(), v_uint32(), v_uint32(), v_uint32()))
+    for c in s:
+        if c in "abcdefABCDEF":
+            return True
 
-    t1 = TestStruct()
-    t1.vsParse(buf, offset=0x0)
+    return False
 
-    t2 = TestStruct()
-    t2.vsParse(buf, offset=0x40)
+
+def main(*args):
+    parsers = get_parsers()
+    buf = ""
+    structs = ()
+    if len(args) == 0:
+        b = []
+        for i in xrange(0x100):
+            b.append(chr(i))
+        buf = "".join(b)
+
+        class TestStruct(VStruct):
+            def __init__(self):
+                VStruct.__init__(self)
+                self.a = v_uint8()
+                self.b = v_uint16()
+                self.c = v_uint32()
+                self.d = v_uint8()
+                self.e = VArray((v_uint32(), v_uint32(), v_uint32(), v_uint32()))
+
+        t1 = TestStruct()
+        t1.vsParse(buf, offset=0x0)
+
+        t2 = TestStruct()
+        t2.vsParse(buf, offset=0x40)
+        structs = (VstructInstance(0x0, t1, "t1"), VstructItem(0x40, t2, "t2"))
+    else:
+        structs = []
+        args = list(args)  # we want a list that we can modify
+        filename = args.pop(0)
+        with open(filename, "rb") as f:
+            buf = f.read()
+
+        for d in args:
+            if ":" not in d:
+                raise RuntimeError("invalid structure declaration: {:s}".format(d))
+
+            soffset, _, parser_name = d.partition(":")
+            name = ""
+            if ":" in parser_name:
+                parser_name, _, name = parser_name.partition(":")
+            offset = None
+            if is_probably_hex(soffset):
+                offset = int(soffset, 0x10)
+            else:
+                offset = int(soffset)
+
+            structs.extend(parsers.parse(parser_name, buf, offset, name=name))
 
     app = QApplication(sys.argv)
-    #screen = VstructViewWidget((VstructItem(t1, "t1", 0x0), VstructItem(t2, "t2", 0x40)), buf)
-    #screen = VstructViewWidget([], buf)
-    screen = VstructViewWidget((VstructItem(t1, "t1", 0x0),), buf)
+    screen = VstructViewWidget(parsers, structs, buf)
     screen.show()
     sys.exit(app.exec_())
 
