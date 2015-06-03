@@ -227,7 +227,7 @@ class VstructHexViewWidget(HexViewWidget):
         menu = super(VstructHexViewWidget, self).get_context_menu(qpoint)
 
         sm = self.getSelectionModel()
-        if sm.offset != sm.end:
+        if sm.start != sm.end:
             return menu
 
         def add_action(menu, text, handler, icon=None):
@@ -239,15 +239,10 @@ class VstructHexViewWidget(HexViewWidget):
             a.triggered.connect(handler)
             menu.addAction(a)
 
-        def make_parse_handler(offset, parser_name):
-            print(offset)
-            return lambda: self.parseRequested.emit(offset, parser_name)
-
         parser_menu = menu.addMenu("Parse as...")
         for parser_name in self._parsers.parser_names:
             add_action(parser_menu, parser_name,
-                       #make_parse_handler(sm.start, parser_name))
-                       functools.partial(self.parseRequested.emit, sm.offset, parser_name))
+                       functools.partial(self.parseRequested.emit, sm.start, parser_name))
 
         return menu
 
@@ -327,11 +322,11 @@ class VstructViewWidget(Base, UI, LoggingObject):
     def _handle_item_activated(self, item_index):
         self._clear_current_range()
         item = item_index.internalPointer()
-        s = item.offset
-        e = item.offset + item.length
-        self._hv.getBorderModel().border_region(s, e, Qt.black)
-        self._current_range = (s, e)
-        self._hv.scrollTo(s)
+        start = item.offset
+        end = start + item.length
+        self._hv.getBorderModel().border_region(start, end, Qt.black)
+        self._current_range = (start, end)
+        self._hv.scrollTo(start)
 
     def _handle_context_menu_requested(self, qpoint):
         index = self.treeView.indexAt(qpoint)

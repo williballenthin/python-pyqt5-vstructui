@@ -12,6 +12,7 @@ PATCH_ACTIONS = v_enum()
 PATCH_ACTIONS.PATCH_REPLACE = 0x2
 PATCH_ACTIONS.PATCH_MATCH = 0x4
 
+MAX_MODULE = 32
 
 
 # from: https://github.com/evil-e/sdb-explorer/blob/master/sdb.h
@@ -23,7 +24,7 @@ class PATCHBITS(VStruct):
         self.pattern_size = v_uint32()
         self.rva = v_uint32()
         self.unknown = v_uint32()
-        self.module_name = v_wstr(size=32)
+        self.module_name = v_wstr(size=MAX_MODULE)
         self.pattern = v_bytes(size=0)
 
     def pcb_pattern_size(self):
