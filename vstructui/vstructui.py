@@ -429,7 +429,7 @@ def main(*args):
 
         t2 = TestStruct()
         t2.vsParse(buf, offset=0x40)
-        structs = (VstructInstance(0x0, t1, "t1"), VstructItem(0x40, t2, "t2"))
+        structs = (VstructInstance(0x0, t1, "t1"), VstructInstance(0x40, t2, "t2"))
     else:
         # vstructui.py /path/to/binary/file "0x0:uint32:first dword" "0x4:uint_2:first word"
         structs = []
