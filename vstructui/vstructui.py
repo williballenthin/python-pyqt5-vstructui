@@ -171,10 +171,16 @@ class VstructItem(Item):
         return 0
 
 
+def item_sort(a, b):
+    if a.offset == b.offset:
+        return a.length - b.length
+    return a.offset - b.offset
+
+
 class VstructRootItem(Item):
     def __init__(self, instances):
         super(VstructRootItem, self).__init__()
-        self._items = sorted([VstructItem(i, self) for i in instances], key=lambda i: i.offset)
+        self._items = sorted([VstructItem(i, self) for i in instances], cmp=item_sort)
 
     @property
     def parent(self):
@@ -190,7 +196,7 @@ class VstructRootItem(Item):
     def add_item(self, instance):
         # be sure to call the TreeModel.treeChanged() method
         self._items.append(VstructItem(instance, self))
-        self._items = sorted(self._items, key=lambda i: i.offset)
+        self._items = sorted(self._items, cmp=item_sort)
 
     @property
     def name(self):
