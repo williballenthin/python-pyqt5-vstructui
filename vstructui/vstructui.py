@@ -21,14 +21,6 @@ from PyQt5.QtWidgets import QHeaderView
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtWidgets import QInputDialog
 
-# need to import this so that defs can import vstructui and access the class
-from vstruct_parser import VstructParserSet
-from vstruct_parser import BasicVstructParserSet
-
-from common import h
-from common import LoggingObject
-from tree import TreeModel
-from tree import ColumnDef
 from vstruct import VStruct
 from vstruct import VArray
 from vstruct.primitives import v_prim
@@ -38,8 +30,17 @@ from vstruct.primitives import v_uint8
 from vstruct.primitives import v_uint16
 from vstruct.primitives import v_uint32
 from vstruct.primitives import enum_mixin
-from vstruct_parser import ComposedParser
-from vstruct_parser import VstructInstance
+
+# need to import this so that defs can import vstructui and access the class
+from .vstruct_parser import VstructParserSet
+from .vstruct_parser import BasicVstructParserSet
+
+from .common import h
+from .common import LoggingObject
+from .tree import TreeModel
+from .tree import ColumnDef
+from .vstruct_parser import ComposedParser
+from .vstruct_parser import VstructInstance
 
 
 defspath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "defs")

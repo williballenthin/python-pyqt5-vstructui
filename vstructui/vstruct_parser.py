@@ -2,7 +2,8 @@ from abc import ABCMeta
 from abc import abstractproperty
 from abc import abstractmethod
 from functools import partial
-from mutablenamedtuple import mutablenamedtuple
+
+from .mutablenamedtuple import mutablenamedtuple
 
 
 VstructInstance = mutablenamedtuple("VstructInstance", ["offset", "instance", "name"])
