@@ -13,4 +13,5 @@ setup(name="python-pyqt5-vstructui",
       author_email="willi.ballenthin@gmail.com",
       url="https://github.com/williballenthin/python-pyqt5-vstructui",
       license="Apache 2.0 License",
+      install_requires=["vivisect-vstruct-wb"],
       packages=["vstructui"])
