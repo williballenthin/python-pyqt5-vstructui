@@ -170,17 +170,19 @@ class VstructItem(Item):
             return self._parent.children.index(self)
         return 0
 
+    def __cmp__(self, other):
+        if self.offset == other.offset:
+            return self.length - other.length
+        return self.offset - other.offset
 
-def item_sort(a, b):
-    if a.offset == b.offset:
-        return a.length - b.length
-    return a.offset - b.offset
+    def __lt__(self, other):
+        return self.__cmp__(other) < 0
 
 
 class VstructRootItem(Item):
     def __init__(self, instances):
         super(VstructRootItem, self).__init__()
-        self._items = sorted([VstructItem(i, self) for i in instances], cmp=item_sort)
+        self._items = sorted([VstructItem(i, self) for i in instances])
 
     @property
     def parent(self):
@@ -196,7 +198,7 @@ class VstructRootItem(Item):
     def add_item(self, instance):
         # be sure to call the TreeModel.treeChanged() method
         self._items.append(VstructItem(instance, self))
-        self._items = sorted(self._items, cmp=item_sort)
+        self._items = sorted(self._items)
 
     @property
     def name(self):
@@ -411,9 +413,9 @@ def main(*args):
     structs = ()
     if len(args) == 0:
         b = []
-        for i in xrange(0x100):
-            b.append(chr(i))
-        buf = "".join(b)
+        for i in range(0x100):
+            b.append(i)
+        buf = bytearray(b)
 
         class TestStruct(VStruct):
             def __init__(self):
