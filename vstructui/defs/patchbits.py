@@ -20,15 +20,15 @@ class PATCHBITS(VStruct):
     def __init__(self):
         VStruct.__init__(self)
         self.opcode = enum_uint32(PATCH_ACTIONS)
-        self.action_size = v_uint32()
-        self.pattern_size = v_uint32()
+        self.action_size = v_uint32()  # size of entire structure
+        self.pattern_size = v_uint32()  # size of pattern field
         self.rva = v_uint32()
         self.unknown = v_uint32()
         self.module_name = v_wstr(size=MAX_MODULE)
         self.pattern = v_bytes(size=0)
 
     def pcb_pattern_size(self):
-        if self.pattern_size > 0x1000:
+        if self.pattern_size > 0x10000:
             print("warning: pattern_size probably incorrect")
             self["pattern"].vsSetLength(0x10000)
         else:
