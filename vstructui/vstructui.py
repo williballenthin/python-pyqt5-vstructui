@@ -29,7 +29,6 @@ from vstruct.primitives import v_bytes
 from vstruct.primitives import v_uint8
 from vstruct.primitives import v_uint16
 from vstruct.primitives import v_uint32
-from vstruct.primitives import enum_mixin
 
 # need to import this so that defs can import vstructui and access the class
 from .vstruct_parser import VstructParserSet
@@ -146,10 +145,11 @@ class VstructItem(Item):
         i = self._instance.instance
         if isinstance(i, VStruct):
             return ""
-        elif isinstance(i, enum_mixin):
-            return "{:s} ({:s})".format(str(i), h(i.vsGetValue()))
         elif isinstance(i, v_number):
-            return h(i.vsGetValue())
+            if i.vsGetEnum() is not None:
+                return str(i)
+            else:
+                return h(i.vsGetValue())
         elif isinstance(i, v_bytes):
             return binascii.b2a_hex(i.vsGetValue())
         elif isinstance(i, v_prim):

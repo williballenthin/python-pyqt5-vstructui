@@ -3,7 +3,6 @@ from vstruct.primitives import v_bytes
 from vstruct.primitives import v_uint32
 from vstruct.primitives import v_wstr
 from vstruct.primitives import v_enum
-from vstruct.primitives import enum_uint32
 
 from vstructui import BasicVstructParserSet
 
@@ -19,7 +18,7 @@ MAX_MODULE = 32
 class PATCHBITS(VStruct):
     def __init__(self):
         VStruct.__init__(self)
-        self.opcode = enum_uint32(PATCH_ACTIONS)
+        self.opcode = v_uint32(enum=PATCH_ACTIONS)
         self.action_size = v_uint32()  # size of entire structure
         self.pattern_size = v_uint32()  # size of pattern field
         self.rva = v_uint32()
