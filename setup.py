@@ -5,7 +5,7 @@ from setuptools import setup
 
 description = "PyQt5 vstruct hex viewer widget."
 setup(name="python-pyqt5-vstructui",
-      version="0.3.3",
+      version="0.4.0",
       description=description,
       long_description=description,
       author="Willi Ballenthin",
@@ -18,4 +18,10 @@ setup(name="python-pyqt5-vstructui",
       package_data={"vstructui": [
           "vstructui.ui",
           "defs/*.py",
-      ]})
+      ]},
+      entry_points={
+        "console_scripts": [
+            "vstructui=vstructui.scripts.vstructui_bin:main",
+        ]
+      },
+)

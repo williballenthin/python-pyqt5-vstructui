@@ -12,11 +12,11 @@ from hexview import QT_COLORS
 from hexview import HexViewWidget
 from hexview import make_color_icon
 
-from PyQt5 import uic
 from PyQt5.QtCore import Qt
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QMenu
 from PyQt5.QtWidgets import QAction
+from PyQt5.QtWidgets import QWidget
 from PyQt5.QtWidgets import QHeaderView
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtWidgets import QInputDialog
@@ -40,6 +40,8 @@ from .tree import TreeModel
 from .tree import ColumnDef
 from .vstruct_parser import ComposedParser
 from .vstruct_parser import VstructInstance
+
+from .vstructui_auto import Ui_Form as VstructViewBase
 
 
 defspath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "defs")
@@ -226,10 +228,6 @@ class VstructRootItem(Item):
         return 0
 
 
-uipath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "vstructui.ui")
-UI, Base = uic.loadUiType(uipath)
-
-
 class VstructHexViewWidget(HexViewWidget):
     # args: offset, parser_name
     parseRequested = pyqtSignal([int, str])
@@ -262,7 +260,7 @@ class VstructHexViewWidget(HexViewWidget):
         return menu
 
 
-class VstructViewWidget(Base, UI, LoggingObject):
+class VstructViewWidget(QWidget, VstructViewBase, LoggingObject):
     def __init__(self, parsers, instances, buf, parent=None):
         """ items is a list of VstructItem """
         super(VstructViewWidget, self).__init__(parent)
