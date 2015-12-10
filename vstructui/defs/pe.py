@@ -1,6 +1,13 @@
 from vstructui.defs.windows import UnixTimestamp
 
 
+from vstruct.primitives import v_enum
+IMAGE_FILE_MACHINES = v_enum()
+IMAGE_FILE_MACHINES.I386  = 0x014c
+IMAGE_FILE_MACHINES.IA64  = 0x0200
+IMAGE_FILE_MACHINES.AMD64 = 0x8664
+
+
 # ripped from vstruct
 import vstruct
 from vstruct.primitives import *
@@ -83,7 +90,7 @@ class CV_INFO_PDB70(vstruct.VStruct):
 class IMAGE_FILE_HEADER(vstruct.VStruct):
     def __init__(self):
         vstruct.VStruct.__init__(self)
-        self.Machine              = v_uint16()
+        self.Machine              = v_uint16(enum=IMAGE_FILE_MACHINES)
         self.NumberOfSections     = v_uint16()
         self.TimeDateStamp        = UnixTimestamp()
         self.PointerToSymbolTable = v_uint32()
