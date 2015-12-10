@@ -55,60 +55,35 @@ def _main(*args):
     structs = ()
     filename = None
     if len(args) == 0:
-        b = []
-        for i in range(0x100):
-            b.append(i)
-        buf = bytearray(b)
+        print("error: at least one argument required (path to binary file)")
+        return -1
 
-        class TestStruct(VStruct):
-            def __init__(self):
-                VStruct.__init__(self)
-                self.a = v_uint8()
-                self.b = v_uint16()
-                self.c = v_uint32()
-                self.d = v_uint8()
-                self.e = VArray((v_uint32(), v_uint32(), v_uint32(), v_uint32()))
+    # vstructui.py /path/to/binary/file "0x0:uint32:first dword" "0x4:uint_2:first word"
+    structs = []
+    args = list(args)  # we want a list that we can modify
+    filename = args.pop(0)
 
-        t1 = TestStruct()
-        t1.vsParse(buf, offset=0x0)
+    with open(filename, "rb") as f:
+        with contextlib.closing(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)) as buf:
+	    for d in args:
+		if ":" not in d:
+		    raise RuntimeError("invalid structure declaration: {:s}".format(d))
 
-        t2 = TestStruct()
-        t2.vsParse(buf, offset=0x40)
-        structs = (VstructInstance(0x0, t1, "t1"), VstructInstance(0x40, t2, "t2"))
-    else:
-        # vstructui.py /path/to/binary/file "0x0:uint32:first dword" "0x4:uint_2:first word"
-        structs = []
-        args = list(args)  # we want a list that we can modify
-        filename = args.pop(0)
+		soffset, _, parser_name = d.partition(":")
+		parser_name, _, name = parser_name.partition(":")
+		offset = None
+		if is_probably_hex(soffset):
+		    offset = int(soffset, 0x10)
+		else:
+		    offset = int(soffset)
 
-        for d in args:
-            if ":" not in d:
-                raise RuntimeError("invalid structure declaration: {:s}".format(d))
+		structs.extend(parsers.parse(parser_name, buf, offset, name=name))
 
-            soffset, _, parser_name = d.partition(":")
-            name = ""
-            if ":" in parser_name:
-                parser_name, _, name = parser_name.partition(":")
-            offset = None
-            if is_probably_hex(soffset):
-                offset = int(soffset, 0x10)
-            else:
-                offset = int(soffset)
+            app = QApplication(sys.argv)
+            screen = vstructui.VstructViewWidget(parsers, structs, buf)
+            screen.show()
+            sys.exit(app.exec_())
 
-            structs.extend(parsers.parse(parser_name, buf, offset, name=name))
-
-    def doit(buf):
-        app = QApplication(sys.argv)
-        screen = vstructui.VstructViewWidget(parsers, structs, buf)
-        screen.show()
-        sys.exit(app.exec_())
-
-    if filename is not None:
-        with open(filename, "rb") as f:
-            with contextlib.closing(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)) as buf:
-                doit(buf)
-    else:
-        doit(buf)
         
 def main():
     sys.exit(_main(*sys.argv[1:]))
