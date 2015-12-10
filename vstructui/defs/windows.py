@@ -33,5 +33,35 @@ class FILETIME(vstruct.primitives.v_prim):
         return self._ts.isoformat("T") + "Z"
 
 
+class UnixTimestamp(vstruct.primitives.v_prim):
+    _vs_builder = True
+    def __init__(self):
+        vstruct.primitives.v_prim.__init__(self)
+        self._vs_length = 4
+        self._vs_value = "\x00" * 4
+        self._vs_fmt = "<I"
+        self._ts = datetime.datetime.min
+
+    def vsParse(self, fbytes, offset=0):
+        offend = offset + self._vs_length
+        dw = struct.unpack("<I", fbytes[offset:offend])[0]
+        self._ts = datetime.datetime.utcfromtimestamp(dw)
+        return offend
+
+    def vsEmit(self):
+        raise NotImplementedError()
+
+    def vsSetValue(self, guidstr):
+        raise NotImplementedError()
+
+    def vsGetValue(self):
+        return self._ts
+
+    def __repr__(self):
+        return self._ts.isoformat("T") + "Z"
+
+
+
+
 def vsEntryVstructParser():
-    return BasicVstructParserSet((FILETIME,))
+    return BasicVstructParserSet((FILETIME,UnixTimestamp))
