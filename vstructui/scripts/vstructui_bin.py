@@ -65,19 +65,19 @@ def _main(*args):
 
     with open(filename, "rb") as f:
         with contextlib.closing(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)) as buf:
-	    for d in args:
-		if ":" not in d:
-		    raise RuntimeError("invalid structure declaration: {:s}".format(d))
+            for d in args:
+                if ":" not in d:
+                    raise RuntimeError("invalid structure declaration: {:s}".format(d))
 
-		soffset, _, parser_name = d.partition(":")
-		parser_name, _, name = parser_name.partition(":")
-		offset = None
-		if is_probably_hex(soffset):
-		    offset = int(soffset, 0x10)
-		else:
-		    offset = int(soffset)
+                soffset, _, parser_name = d.partition(":")
+                parser_name, _, name = parser_name.partition(":")
+                offset = None
+                if is_probably_hex(soffset):
+                    offset = int(soffset, 0x10)
+                else:
+                    offset = int(soffset)
 
-		structs.extend(parsers.parse(parser_name, buf, offset, name=name))
+                structs.extend(parsers.parse(parser_name, buf, offset, name=name))
 
             app = QApplication(sys.argv)
             screen = vstructui.VstructViewWidget(parsers, structs, buf)
