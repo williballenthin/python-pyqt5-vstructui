@@ -22,6 +22,7 @@ setup(name="python-pyqt5-vstructui",
       entry_points={
         "console_scripts": [
             "vstructui=vstructui.scripts.vstructui_bin:main",
+            "vivihex=vstructui.scripts.vstructui_bin:main",
         ]
       },
 )
